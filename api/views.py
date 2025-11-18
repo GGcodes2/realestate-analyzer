@@ -3,26 +3,29 @@ import os
 import pandas as pd
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.conf import settings
 from groq import Groq
 
-# Load API key from settings (loaded from .env)
-GROQ_API_KEY = settings.GROQ_API_KEY
-print("DEBUG: GROQ KEY present? ", bool(GROQ_API_KEY))
-
+# ───────────────────────────────────────────────
+# ENV KEY
+# ───────────────────────────────────────────────
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_DATA_FILE = os.path.join(BASE_DIR, "realestate.xlsx")
-UPLOAD_FILE = os.path.join(BASE_DIR, "uploaded.xlsx")
 
-# Load either uploaded file or default
+# IMPORTANT FOR RENDER FREE TIER
+UPLOAD_FILE = "/tmp/uploaded.xlsx"     # temporary storage
+DEFAULT_DATA_FILE = os.path.join(BASE_DIR, "realestate.xlsx")
+
+
+# Load Excel
 def load_excel():
     if os.path.exists(UPLOAD_FILE):
         return pd.read_excel(UPLOAD_FILE)
     return pd.read_excel(DEFAULT_DATA_FILE)
 
-# GROQ LLM call
+
+# Groq call
 def ask_groq(prompt):
     try:
         response = groq_client.chat.completions.create(
@@ -38,7 +41,10 @@ def ask_groq(prompt):
         print("GROQ ERROR:", e)
         return None
 
-# UPLOAD ENDPOINT
+
+# ───────────────────────────────────────────────
+# FILE UPLOAD ENDPOINT
+# ───────────────────────────────────────────────
 @csrf_exempt
 def upload_excel(request):
     if request.method != "POST":
@@ -48,13 +54,18 @@ def upload_excel(request):
         return JsonResponse({"error": "No file provided"}, status=400)
 
     file = request.FILES["file"]
+
+    # save to /tmp
     with open(UPLOAD_FILE, "wb") as f:
         for chunk in file.chunks():
             f.write(chunk)
 
     return JsonResponse({"message": "Excel uploaded successfully"})
 
-# ANALYZE ENDPOINT
+
+# ───────────────────────────────────────────────
+# AI ANALYZE ENDPOINT
+# ───────────────────────────────────────────────
 @csrf_exempt
 def analyze(request):
     if request.method != "POST":
@@ -69,39 +80,43 @@ def analyze(request):
     if not query:
         return JsonResponse({"error": "Query is required"}, status=400)
 
-    # Load Excel
+    # Load dataset
     try:
         df = load_excel()
         df.columns = [c.strip().lower() for c in df.columns]
-    except:
-        return JsonResponse({"error": "Excel file missing or corrupted"}, status=500)
+    except Exception as e:
+        return JsonResponse({"error": f"Excel error: {str(e)}"}, status=500)
 
     if "final location" not in df.columns:
         return JsonResponse({"error": "Column 'final location' missing"}, status=500)
 
-    # AI: Detect locations in query
+    # Detect referenced locations
     locations = []
     for loc in df["final location"].unique():
         if isinstance(loc, str) and loc.lower() in query.lower():
             locations.append(loc)
 
+    # fallback: use whole dataset
     if not locations:
         locations = list(df["final location"].unique())
 
     filtered = df[df["final location"].str.lower().isin([l.lower() for l in locations])]
 
     if filtered.empty:
-        return JsonResponse({"error": "No matching data found for your query"}, status=404)
+        return JsonResponse({"error": "No matching data found"}, status=404)
 
+    # Stats
     try:
         avg_price = filtered["total_sales - igr"].mean()
     except:
         avg_price = None
 
+    # Chart data
     try:
         chart = (
             filtered.groupby("year")["total_sales - igr"]
-            .mean().reset_index()
+            .mean()
+            .reset_index()
             .rename(columns={"year": "Year", "total_sales - igr": "Value"})
             .sort_values("Year")
             .to_dict(orient="records")
@@ -111,27 +126,26 @@ def analyze(request):
 
     lightweight_table = filtered.head(50).to_dict(orient="records")
 
+    # AI SUPER PROMPT
     ai_prompt = f"""
-You are a senior real-estate analyst.
-
 User Query:
 {query}
 
-Available Data (first 50 rows):
-{lightweight_table}
+Detected Locations:
+{locations}
 
-Detected Locations: {locations}
+Filtered Data (first 50 rows):
+{lightweight_table}
 
 Trend Data:
 {chart}
 
-Your Task:
-- Perform deep comparison (if multiple locations)
-- Identify price trends, demand signals
-- Predict future growth
-- Keep answer short and high-quality (5–7 sentences)
-
-Answer:
+Task:
+- Understand user's question deeply
+- Compare multiple locations if mentioned
+- Analyze trends, growth, pricing, demand
+- Predict future market performance
+- Give a clear real-estate insight (5–7 sentences)
 """
 
     ai_output = ask_groq(ai_prompt) or "AI unavailable."
@@ -139,8 +153,7 @@ Answer:
     table = filtered.to_dict(orient="records")
 
     return JsonResponse({
-        "summary": f"Detected locations: {locations}. Avg sales value: {avg_price:.2f}."
-        if avg_price else f"Detected locations: {locations}.",
+        "summary": f"Locations Detected: {locations}. Avg Sales Value: {avg_price:.2f}" if avg_price else f"Locations Detected: {locations}",
         "chart": chart,
         "table": table,
         "ai_message": ai_output,
