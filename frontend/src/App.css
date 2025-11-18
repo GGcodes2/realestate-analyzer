@@ -1,0 +1,200 @@
+/* ------------------------------------------------------ */
+/* GLOBAL CONTAINER                                       */
+/* ------------------------------------------------------ */
+
+.app-container {
+  max-width: 950px;
+  margin: auto;
+  padding: 40px 25px;
+  font-family: "Inter", sans-serif;
+  color: #1f2937; /* gray-800 */
+}
+
+/* ------------------------------------------------------ */
+/* TITLES                                                 */
+/* ------------------------------------------------------ */
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 25px;
+  text-align: center;
+  color: #111827; /* gray-900 */
+}
+
+/* Section titles */
+.section-title {
+  margin-top: 35px;
+  margin-bottom: 10px;
+  font-size: 22px;
+  font-weight: 600;
+  border-left: 4px solid #2563eb;
+  padding-left: 8px;
+  color: #111827;
+}
+
+/* ------------------------------------------------------ */
+/* FILE UPLOAD                                             */
+/* ------------------------------------------------------ */
+
+.upload-section {
+  background: #f9fafb; /* gray-50 */
+  padding: 20px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb; /* gray-200 */
+  margin-bottom: 25px;
+}
+
+.upload-label {
+  font-size: 15px;
+  font-weight: 500;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.file-input {
+  padding: 10px;
+  border: 1px solid #d1d5db; /* gray-300 */
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  margin-right: 12px;
+}
+
+/* Upload Button */
+.upload-btn {
+  padding: 10px 20px;
+  background: #10b981; /* green-500 */
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: 0.2s ease;
+  font-weight: 500;
+}
+
+.upload-btn:hover {
+  background: #059669; /* green-600 */
+}
+
+/* ------------------------------------------------------ */
+/* SEARCH INPUT & MAIN BUTTON                             */
+/* ------------------------------------------------------ */
+
+.input-box {
+  width: 100%;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db; /* gray-300 */
+  margin-bottom: 12px;
+  font-size: 15px;
+  transition: 0.2s;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: #2563eb; /* blue-600 */
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.button {
+  background: #2563eb; /* blue-600 */
+  color: white;
+  padding: 12px 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  font-size: 15px;
+  font-weight: 500;
+  transition: 0.2s ease;
+}
+
+.button:hover {
+  background: #1e4ed8; /* blue-700 */
+}
+
+.button:disabled {
+  background: #9ca3af; /* gray-400 */
+  cursor: not-allowed;
+}
+
+/* ------------------------------------------------------ */
+/* FEEDBACK TEXT                                          */
+/* ------------------------------------------------------ */
+
+.error-text {
+  color: #dc2626; /* red-600 */
+  margin-top: 10px;
+}
+
+/* ------------------------------------------------------ */
+/* RESULT SECTIONS                                        */
+/* ------------------------------------------------------ */
+
+.summary-text {
+  font-size: 16px;
+  background: #f3f4f6; /* gray-100 */
+  padding: 14px;
+  border-radius: 10px;
+  border-left: 4px solid #2563eb;
+}
+
+.ai-box {
+  background: #eef2ff; /* indigo-50 */
+  padding: 16px;
+  border-radius: 10px;
+  margin-top: 10px;
+  line-height: 1.55rem;
+  border: 1px solid #c7d2fe; /* indigo-200 */
+}
+
+/* ------------------------------------------------------ */
+/* CHART                                                   */
+/* ------------------------------------------------------ */
+
+.chart-container {
+  width: 100%;
+  height: 360px;
+  margin-top: 10px;
+  background: white;
+  padding: 15px;
+  border-radius: 12px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+  border: 1px solid #e5e7eb;
+}
+
+/* ------------------------------------------------------ */
+/* TABLE (JSON OUTPUT)                                     */
+/* ------------------------------------------------------ */
+
+.table-box {
+  background: #f9fafb;
+  padding: 14px;
+  border-radius: 10px;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------ */
+/* RESPONSIVE                                              */
+/* ------------------------------------------------------ */
+
+@media (max-width: 600px) {
+  .title {
+    font-size: 26px;
+  }
+
+  .button,
+  .upload-btn {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .upload-section {
+    text-align: center;
+  }
+}
