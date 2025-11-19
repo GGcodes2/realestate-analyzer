@@ -1,0 +1,58 @@
+services:
+  # -------------------------------
+  # BACKEND (Django)
+  # -------------------------------
+  - name: realestate-backend
+    type: web
+    env: python
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn backend.wsgi:application --timeout 120
+    plan: free
+
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.7
+
+      - key: DJANGO_SETTINGS_MODULE
+        value: backend.settings
+
+      - key: PORT
+        value: 8000
+
+      # CONFIGURE GROQ API KEY FROM RENDER DASHBOARD
+      - key: GROQ_API_KEY
+        sync: false
+
+      # Needed for Django static files in production
+      - key: SECRET_KEY
+        generateValue: true
+
+      - key: DEBUG
+        value: "False"
+
+    # Django static files output
+    buildFilters:
+      - "**/*.py"
+
+    # Auto-migrate database on deploy (optional)
+    postDeployCommand: |
+      python manage.py migrate
+
+  # -------------------------------
+  # FRONTEND (React + Vite)
+  # -------------------------------
+  - name: realestate-frontend
+    type: web
+    env: static
+    plan: free
+    region: singapore
+
+    buildCommand: cd frontend && npm install && npm run build
+
+    staticPublishPath: frontend/dist
+
+    # frontend should hit backend
+    envVars:
+      - key: VITE_API_BASE
+        value: https://realestate-backend.onrender.com
