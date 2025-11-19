@@ -56,3 +56,5 @@ services:
     envVars:
       - key: VITE_API_BASE
         value: https://realestate-backend.onrender.com
+      - key: PYTHON_VERSION
+        value: 3.11.6
