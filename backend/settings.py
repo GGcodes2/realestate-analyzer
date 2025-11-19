@@ -1,20 +1,25 @@
-# backend/settings.py
 from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-# Base dir (project root next to manage.py)
+# Base dir
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env from project root (manage.py dir)
+# Load environment variables
 load_dotenv(BASE_DIR / ".env")
 
+# -------------------------------------------------
 # SECURITY
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-please-change")
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() in ("1", "true", "yes")
+# -------------------------------------------------
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change")
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in ("1", "true", "yes")
+
+# Allow Render, Vercel frontend, local dev
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
 
-# Application definition
+# -------------------------------------------------
+# APPS
+# -------------------------------------------------
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -22,14 +27,21 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # third-party
     "corsheaders",
+
+    # your app
     "api",
 ]
 
+# -------------------------------------------------
+# MIDDLEWARE
+# -------------------------------------------------
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",          # CORS first
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # serve static
+    "whitenoise.middleware.WhiteNoiseMiddleware",     # Static files
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -40,6 +52,9 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "backend.urls"
 
+# -------------------------------------------------
+# TEMPLATES
+# -------------------------------------------------
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -58,7 +73,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "backend.wsgi.application"
 
-# Database – default sqlite (ok for prototype)
+# -------------------------------------------------
+# DATABASE (SQLite OK for Render free tier)
+# -------------------------------------------------
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -66,7 +83,9 @@ DATABASES = {
     }
 }
 
-# Password validation (default)
+# -------------------------------------------------
+# PASSWORD VALIDATION
+# -------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -74,24 +93,44 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-# Internationalization
+# -------------------------------------------------
+# INTERNATIONALIZATION
+# -------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# Static files
-STATIC_URL = "static/"
+# -------------------------------------------------
+# STATIC FILES (Render Deployment)
+# -------------------------------------------------
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-# whitenoise settings
+
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-# CORS: allow frontend to call API
-CORS_ALLOW_ALL_ORIGINS = True
+# -------------------------------------------------
+# CORS SETTINGS (FINAL FIXED VERSION)
+# -------------------------------------------------
+CORS_ALLOWED_ORIGINS = [
+    "https://realestate-analyzer-8olm.vercel.app",     # Your Vercel frontend
+    "https://realestate-analyzer-vc9k.onrender.com",   # Your backend domain
+]
 
-# Load Groq key and print debug
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = ["*"]
+CORS_ALLOW_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+# IMPORTANT: REMOVE CORS_ALLOW_ALL_ORIGINS (causes conflict)
+# DO NOT ADD IT AGAIN.
+
+# -------------------------------------------------
+# ENV VARS
+# -------------------------------------------------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 print("DEBUG: GROQ KEY present? ", bool(GROQ_API_KEY))
 
-# Optional: other env flags
-# DJANGO_SECRET_KEY, DJANGO_DEBUG, DJANGO_ALLOWED_HOSTS are supported above
+# -------------------------------------------------
+# DEFAULT PRIMARY KEY TYPE
+# -------------------------------------------------
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
