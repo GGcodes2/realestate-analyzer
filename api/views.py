@@ -9,21 +9,36 @@ from rest_framework.response import Response
 
 from groq import Groq
 
+# ──────────────────────────────────────────────────────────────
+# ENVIRONMENT
+# ──────────────────────────────────────────────────────────────
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_DATA_FILE = os.path.join(BASE_DIR, "realestate.xlsx")
 
+TEMP_UPLOAD_PATH = "/tmp/latest.xlsx"    # Render-safe temp file
 
+
+# ──────────────────────────────────────────────────────────────
+# LOAD EXCEL
+# ──────────────────────────────────────────────────────────────
 def load_excel():
-    """Load uploaded Excel from memory OR fallback file."""
+    """Load uploaded Excel from /tmp OR fallback."""
     try:
+        if os.path.exists(TEMP_UPLOAD_PATH):
+            return pd.read_excel(TEMP_UPLOAD_PATH)
+
         return pd.read_excel(DEFAULT_DATA_FILE)
+
     except Exception as e:
         raise e
 
 
+# ──────────────────────────────────────────────────────────────
+# GROQ AI CALL
+# ──────────────────────────────────────────────────────────────
 def ask_groq(prompt):
     try:
         response = groq_client.chat.completions.create(
@@ -39,9 +54,9 @@ def ask_groq(prompt):
         return None
 
 
-# ----------------------------
-# UPLOAD EXCEL
-# ----------------------------
+# ──────────────────────────────────────────────────────────────
+# UPLOAD EXCEL — FINAL FIX
+# ──────────────────────────────────────────────────────────────
 @csrf_exempt
 @api_view(["POST"])
 def upload_excel(request):
@@ -50,17 +65,20 @@ def upload_excel(request):
         if not excel_file:
             return Response({"error": "No file provided"}, status=400)
 
-        df = pd.read_excel(excel_file)
-        request.session["uploaded_data"] = df.to_json()
+        # SAVE to /tmp (Render safe and allowed)
+        with open(TEMP_UPLOAD_PATH, "wb+") as f:
+            for chunk in excel_file.chunks():
+                f.write(chunk)
 
         return Response({"message": "File uploaded successfully"})
+
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
 
-# ----------------------------
-# ANALYZE QUERY
-# ----------------------------
+# ──────────────────────────────────────────────────────────────
+# ANALYZE QUERY — FINAL FIX
+# ──────────────────────────────────────────────────────────────
 @csrf_exempt
 @api_view(["POST"])
 def analyze(request):
@@ -69,11 +87,14 @@ def analyze(request):
         if not query:
             return Response({"error": "Query required"}, status=400)
 
-        # load excel
+        # Load Excel (uploaded or fallback)
         df = load_excel()
         df.columns = [col.strip().lower() for col in df.columns]
 
-        # detect locations
+        if "final location" not in df.columns:
+            return Response({"error": "Column 'final location' not found"}, status=500)
+
+        # Detect locations
         locations = [
             loc for loc in df["final location"].unique()
             if isinstance(loc, str) and loc.lower() in query.lower()
@@ -84,9 +105,13 @@ def analyze(request):
 
         filtered = df[df["final location"].str.lower().isin([l.lower() for l in locations])]
 
-        # stats
+        if filtered.empty:
+            return Response({"error": "No matching data found"}, status=404)
+
+        # Stats
         avg_value = filtered["total_sales - igr"].mean()
 
+        # Chart data
         chart = (
             filtered.groupby("year")["total_sales - igr"]
             .mean()
@@ -98,13 +123,14 @@ def analyze(request):
 
         table = filtered.head(50).to_dict(orient="records")
 
-        # AI
+        # AI Prompt
         ai_prompt = f"""
 User Query: {query}
-Locations: {locations}
+Locations Detected: {locations}
 Trend Data: {chart}
 
-Analyze trends, compare locations, give future market prediction.
+Analyze the real estate trends, compare locations, explain growth pattern,
+predict future market, and give insights.
 """
 
         ai_message = ask_groq(ai_prompt)
