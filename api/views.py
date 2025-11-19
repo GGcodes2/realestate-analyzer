@@ -3,29 +3,45 @@ import os
 import pandas as pd
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 from groq import Groq
 
-# ───────────────────────────────────────────────
-# ENV KEY
-# ───────────────────────────────────────────────
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# ----------------------------------------
+# ENV Key
+# ----------------------------------------
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# IMPORTANT FOR RENDER FREE TIER
-UPLOAD_FILE = "/tmp/uploaded.xlsx"     # temporary storage
+# Default bundled Excel file
 DEFAULT_DATA_FILE = os.path.join(BASE_DIR, "realestate.xlsx")
 
 
-# Load Excel
+# ----------------------------------------
+# LOAD EXCEL (Render Safe)
+# ----------------------------------------
 def load_excel():
-    if os.path.exists(UPLOAD_FILE):
-        return pd.read_excel(UPLOAD_FILE)
+    """
+    Load Excel either from memory cache or fallback file.
+    Render free tier cannot write to disk -> so we store uploaded data in memory.
+    """
+    global uploaded_df
+
+    if uploaded_df is not None:
+        return uploaded_df
+
     return pd.read_excel(DEFAULT_DATA_FILE)
 
 
-# Groq call
+# In-memory dataframe (global)
+uploaded_df = None
+
+
+# ----------------------------------------
+# Ask AI (Groq)
+# ----------------------------------------
 def ask_groq(prompt):
     try:
         response = groq_client.chat.completions.create(
@@ -42,120 +58,114 @@ def ask_groq(prompt):
         return None
 
 
-# ───────────────────────────────────────────────
-# FILE UPLOAD ENDPOINT
-# ───────────────────────────────────────────────
+# ----------------------------------------
+# UPLOAD EXCEL (Render Safe)
+# ----------------------------------------
 @csrf_exempt
+@api_view(["POST"])
 def upload_excel(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=400)
-
-    if "file" not in request.FILES:
-        return JsonResponse({"error": "No file provided"}, status=400)
-
-    file = request.FILES["file"]
-
-    # save to /tmp
-    with open(UPLOAD_FILE, "wb") as f:
-        for chunk in file.chunks():
-            f.write(chunk)
-
-    return JsonResponse({"message": "Excel uploaded successfully"})
-
-
-# ───────────────────────────────────────────────
-# AI ANALYZE ENDPOINT
-# ───────────────────────────────────────────────
-@csrf_exempt
-def analyze(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=400)
+    global uploaded_df
 
     try:
-        body = json.loads(request.body)
-        query = body.get("query", "").strip()
+        excel_file = request.FILES.get("file")
+
+        if not excel_file:
+            return Response({"error": "No file uploaded"}, status=400)
+
+        # Read Excel directly from memory
+        uploaded_df = pd.read_excel(excel_file)
+
+        return Response({"message": "File uploaded successfully!"})
+    except Exception as e:
+        return Response({"error": f"Upload failed: {str(e)}"}, status=500)
+
+
+# ----------------------------------------
+# ANALYZE
+# ----------------------------------------
+@csrf_exempt
+@api_view(["POST"])
+def analyze(request):
+    try:
+        query = request.data.get("query", "").strip()
     except:
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+        return Response({"error": "Invalid JSON"}, status=400)
 
     if not query:
-        return JsonResponse({"error": "Query is required"}, status=400)
+        return Response({"error": "Query is required"}, status=400)
 
-    # Load dataset
+    # Load data
     try:
         df = load_excel()
         df.columns = [c.strip().lower() for c in df.columns]
     except Exception as e:
-        return JsonResponse({"error": f"Excel error: {str(e)}"}, status=500)
+        return Response({"error": f"Excel load error: {str(e)}"}, status=500)
 
     if "final location" not in df.columns:
-        return JsonResponse({"error": "Column 'final location' missing"}, status=500)
+        return Response({"error": "Excel missing required column: final location"}, status=500)
 
-    # Detect referenced locations
+    # Detect locations
     locations = []
-    for loc in df["final location"].unique():
+    for loc in df["final location"].dropna().unique():
         if isinstance(loc, str) and loc.lower() in query.lower():
             locations.append(loc)
 
-    # fallback: use whole dataset
     if not locations:
-        locations = list(df["final location"].unique())
+        locations = list(df["final location"].dropna().unique())
 
+    # Filter rows
     filtered = df[df["final location"].str.lower().isin([l.lower() for l in locations])]
 
     if filtered.empty:
-        return JsonResponse({"error": "No matching data found"}, status=404)
+        return Response({"error": "No matching data found"}, status=404)
 
-    # Stats
-    try:
-        avg_price = filtered["total_sales - igr"].mean()
-    except:
-        avg_price = None
+    # Compute stats
+    avg_sales = None
+    if "total_sales - igr" in filtered.columns:
+        avg_sales = filtered["total_sales - igr"].mean()
 
-    # Chart data
-    try:
-        chart = (
-            filtered.groupby("year")["total_sales - igr"]
-            .mean()
-            .reset_index()
-            .rename(columns={"year": "Year", "total_sales - igr": "Value"})
-            .sort_values("Year")
-            .to_dict(orient="records")
-        )
-    except:
-        chart = []
+    # Chart
+    chart = []
+    if "year" in filtered.columns and "total_sales - igr" in filtered.columns:
+        try:
+            chart = (
+                filtered.groupby("year")["total_sales - igr"]
+                .mean()
+                .reset_index()
+                .rename(columns={"year": "Year", "total_sales - igr": "Value"})
+                .sort_values("Year")
+                .to_dict(orient="records")
+            )
+        except:
+            chart = []
 
-    lightweight_table = filtered.head(50).to_dict(orient="records")
+    # Prepare AI prompt
+    sample_rows = filtered.head(50).to_dict(orient="records")
 
-    # AI SUPER PROMPT
     ai_prompt = f"""
-User Query:
-{query}
+User Query: {query}
 
-Detected Locations:
-{locations}
+Locations Detected: {locations}
 
-Filtered Data (first 50 rows):
-{lightweight_table}
+Filtered Data Sample:
+{sample_rows}
 
 Trend Data:
 {chart}
 
 Task:
-- Understand user's question deeply
-- Compare multiple locations if mentioned
-- Analyze trends, growth, pricing, demand
-- Predict future market performance
-- Give a clear real-estate insight (5–7 sentences)
+- Deeply answer the user's real estate query
+- Compare locations, growth, demand, and pricing
+- Analyze trends and future predictions
+- Provide 5–7 strong insights
 """
 
     ai_output = ask_groq(ai_prompt) or "AI unavailable."
 
-    table = filtered.to_dict(orient="records")
-
-    return JsonResponse({
-        "summary": f"Locations Detected: {locations}. Avg Sales Value: {avg_price:.2f}" if avg_price else f"Locations Detected: {locations}",
+    return Response({
+        "summary": f"Detected: {locations}" + (f", Avg Sales: {avg_sales:.2f}" if avg_sales else ""),
         "chart": chart,
-        "table": table,
+        "table": filtered.to_dict(orient="records"),
         "ai_message": ai_output,
         "locations_used": locations,
     })
