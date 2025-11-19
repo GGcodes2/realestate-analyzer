@@ -10,6 +10,8 @@ import {
 } from "recharts";
 import "./App.css";
 
+const API_BASE = import.meta.env.VITE_API_BASE;
+
 function App() {
   const [query, setQuery] = useState("");
   const [file, setFile] = useState(null);
@@ -17,9 +19,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
 
-  // ─────────────────────────────────────────────
-  // UPLOAD EXCEL
-  // ─────────────────────────────────────────────
+  // Upload Excel
   const uploadExcel = async () => {
     if (!file) {
       setError("Please select an Excel file.");
@@ -32,7 +32,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/upload_excel/", {
+      const res = await fetch(`${API_BASE}/api/upload_excel/`, {
         method: "POST",
         body: formData,
       });
@@ -47,9 +47,7 @@ function App() {
     setLoading(false);
   };
 
-  // ─────────────────────────────────────────────
-  // SUPER AI QUERY ANALYZE
-  // ─────────────────────────────────────────────
+  // AI Analyze Query
   const handleAnalyze = async () => {
     if (!query.trim()) return;
 
@@ -58,7 +56,7 @@ function App() {
     setResult(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/analyze/", {
+      const res = await fetch(`${API_BASE}/api/analyze/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),
@@ -111,19 +109,15 @@ function App() {
 
       {result && (
         <>
-          {/* DETECTED LOCATIONS */}
           <h2 className="section-title">AI Detected Locations</h2>
           <p className="ai-box">{result.locations_used?.join(", ")}</p>
 
-          {/* SUMMARY */}
           <h2 className="section-title">Summary</h2>
           <p className="summary-text">{result.summary}</p>
 
-          {/* AI INSIGHTS */}
           <h2 className="section-title">AI Insights</h2>
           <p className="ai-box">{result.ai_message}</p>
 
-          {/* TREND CHART */}
           {result.chart?.length > 0 && (
             <>
               <h2 className="section-title">Sales Trend</h2>
@@ -146,7 +140,6 @@ function App() {
             </>
           )}
 
-          {/* TABLE */}
           <h2 className="section-title">Table Data</h2>
           <div className="table-scroll">
             <pre className="table-box">
