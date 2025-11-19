@@ -49,5 +49,5 @@ services:
     staticPublishPath: frontend/dist
 
     envVars:
-      - key: VITE_API_BASE
-        value: https://realestate-backend.onrender.com
+  - key: VITE_API_BASE
+    value: https://realestate-analyzer-vc9k.onrender.com
